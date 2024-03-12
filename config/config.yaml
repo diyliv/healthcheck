@@ -1,0 +1,5 @@
+Logs:
+ Path: ""
+ Level: error
+ MaxAge: 1
+ MaxBackups: 4
