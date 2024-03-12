@@ -3,14 +3,14 @@ package config
 import "github.com/spf13/viper"
 
 type Config struct {
-	Logs Logs
+	Logs Logs `yaml:"Logs"`
 }
 
 type Logs struct {
-	Path       string `yaml:"Path" json:"path"`
-	Level      string `yaml:"Level" json:"level"`
-	MaxAge     int    `yaml:"MaxAge" json:"max_age"`
-	MaxBackups int    `yaml:"MaxBackups" json:"max_backups"`
+	Path       string `yaml:"Path"`
+	Level      string `yaml:"Level"`
+	MaxAge     int    `yaml:"MaxAge"`
+	MaxBackups int    `yaml:"MaxBackups"`
 }
 
 func ReadConfig(cfgName, cfgType, cfgPath string) (*Config, error) {
