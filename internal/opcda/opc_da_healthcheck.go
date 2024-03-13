@@ -1,8 +1,6 @@
 package opcda
 
 import (
-	"errors"
-
 	"go.uber.org/zap"
 
 	"github.com/diyliv/opc"
@@ -20,7 +18,7 @@ func NewHealthCheck(opcda models.OPCDAHealthCheck) (*healthcheck, error) {
 	if opcda.Server == "" {
 		return nil, opcdacheck.ErrNoServerSpecified
 	} else if len(opcda.Nodes) == 0 {
-		return nil, errors.New("node must be specified")
+		return nil, opcdacheck.ErrNoNodeSpecified
 	}
 
 	return &healthcheck{}, nil
