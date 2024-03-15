@@ -2,7 +2,6 @@ package opcda
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -14,13 +13,12 @@ import (
 )
 
 type healthcheck struct {
-	logger  *zap.Logger
-	conn    opc.Connection
-	mu      sync.RWMutex
-	storage map[string]opc.Connection
+	logger *zap.Logger
+	conn   opc.Connection
+	cache  models.Cache
 }
 
-func NewHealthCheck(ctx context.Context, logger *zap.Logger, opcda models.OPCDAHealthCheck) (*healthcheck, error) {
+func NewHealthCheck(ctx context.Context, logger *zap.Logger, opcda models.OPCDAHealthCheck, cache models.Cache) (*healthcheck, error) {
 	// no checking for tags field because in some cases
 	// they are needed to be specified after
 	// initialization part
@@ -35,14 +33,13 @@ func NewHealthCheck(ctx context.Context, logger *zap.Logger, opcda models.OPCDAH
 		return nil, err
 	}
 	healthcheck := &healthcheck{
-		logger:  logger,
-		conn:    conn,
-		storage: make(map[string]opc.Connection),
+		logger: logger,
+		conn:   conn,
+		cache:  cache,
 	}
-
-	healthcheck.mu.Lock()
-	healthcheck.storage[opcda.Server] = conn
-	healthcheck.mu.Unlock()
+	if err := healthcheck.cache.Put(ctx, opcda.Server, conn); err != nil {
+		return nil, err
+	}
 
 	go healthcheck.check(ctx, opcda.HeartBeat)
 
@@ -67,31 +64,31 @@ func (h *healthcheck) check(ctx context.Context, heartBeat time.Duration) error 
 }
 
 func (h *healthcheck) Add(ctx context.Context, opcda models.OPCDAHealthCheck) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	_, ok := h.storage[opcda.Server]
-	if ok {
-		return opcdacheck.ErrOpcServerExists
-	}
 	conn, err := connectToOpc(ctx, opcda)
 	if err != nil {
 		return err
 	}
-	h.storage[opcda.Server] = conn
+	if err := h.cache.Put(ctx, opcda.Server, conn); err != nil {
+		return err
+	}
 	go h.check(ctx, opcda.HeartBeat)
 	return nil
 }
 
-func (h *healthcheck) Stop(cancel context.CancelFunc, server string) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	conn, ok := h.storage[server]
+func (h *healthcheck) Stop(ctx context.Context, cancel context.CancelFunc, server string) error {
+	val, err := h.cache.Get(ctx, server)
+	if err != nil {
+		return err
+	}
+	conn, ok := val.(opc.Connection)
 	if !ok {
-		return opcdacheck.ErrNoOpcConnection
+		return opcdacheck.ErrOPCDAConvertion
 	}
 	conn.Close()
+	if err := h.cache.Remove(ctx, server); err != nil {
+		return err
+	}
 	cancel()
-	delete(h.storage, server)
 	return nil
 }
 
